@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Consulta API Datajud</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      line-height: 1.6;
+    }
+
+    .details {
+      background-color: #f4f4f4;
+      border: 1px solid #ddd;
+      padding: 15px;
+      margin-top: 20px;
+      border-radius: 5px;
+    }
+
+    .details h3 {
+      margin-top: 0;
+      color: #333;
+    }
+
+    .details p {
+      margin: 5px 0;
+    }
+
+    #movimentos {
+      margin-top: 20px;
+    }
+
+    .movimento {
+      background-color: #f9f9f9;
+      border: 1px solid #eee;
+      padding: 10px;
+      margin-bottom: 10px;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Consulta API Pública Datajud</h1>
+
+  <form id="consulta-form">
+    <label for="numeroProcesso">Número do Processo:</label>
+    <input type="text" id="numeroProcesso" placeholder="Ex: 00001927220225200003" required><br><br>
+
+    <button type="button" onclick="consultar()">Consultar</button>
+  </form>
+
+  <div id="resultado-detalhado" style="display: none;">
+    <div class="details">
+      <h3>Informações do Processo</h3>
+      <p><strong>Número do Processo:</strong> <span id="info-numero-processo"></span></p>
+      <p><strong>Classe:</strong> <span id="info-classe"></span></p>
+      <p><strong>Sistema:</strong> <span id="info-sistema"></span></p>
+      <p><strong>Formato:</strong> <span id="info-formato"></span></p>
+      <p><strong>Tribunal:</strong> <span id="info-tribunal"></span></p>
+      <p><strong>Data de Ajuizamento:</strong> <span id="info-data-ajuizamento"></span></p>
+      <p><strong>Última Atualização:</strong> <span id="info-ultima-atualizacao"></span></p>
+    </div>
+
+    <div id="movimentos">
+      <h3>Movimentações</h3>
+      <div id="lista-movimentos"></div>
+    </div>
+  </div>
+
+  <script>
+    async function consultarAPI(numeroProcesso) {
+      const resultadoDetalhado = document.getElementById('resultado-detalhado');
+      resultadoDetalhado.style.display = 'none';
+
+      try {
+        const response = await fetch('http://127.0.0.1:3000/consulta', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            numeroProcesso: numeroProcesso
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`Erro: ${response.status}`);
+        }
+
+        const data = await response.json();
+        exibirDetalhes(data);
+      } catch (error) {
+        alert(`Erro na consulta: ${error.message}`);
+      }
+    }
+
+    function exibirDetalhes(data) {
+      const resultadoDetalhado = document.getElementById('resultado-detalhado');
+
+      // Clear previous results
+      resultadoDetalhado.innerHTML = '<h3>Resultados da Consulta</h3>';
+
+      // Iterate through all hits
+      data.hits.hits.forEach((hit, index) => {
+        // Create a container for each process
+        const processoDiv = document.createElement('div');
+        processoDiv.classList.add('details');
+        processoDiv.innerHTML = `
+            <h4>Processo ${index + 1}</h4>
+            <p><strong>Número do Processo:</strong> ${hit._source.numeroProcesso}</p>
+            <p><strong>Classe:</strong> ${hit._source.classe.codigo} - ${hit._source.classe.nome}</p>
+            <p><strong>Sistema:</strong> ${hit._source.sistema.codigo} - ${hit._source.sistema.nome}</p>
+            <p><strong>Formato:</strong> ${hit._source.formato.codigo} - ${hit._source.formato.nome}</p>
+            <p><strong>Tribunal:</strong> ${hit._source.tribunal}</p>
+            <p><strong>Data de Ajuizamento:</strong> ${new Date(hit._source.dataAjuizamento).toLocaleString('pt-BR')}</p>
+            <p><strong>Última Atualização:</strong> ${new Date(hit._source.dataHoraUltimaAtualizacao).toLocaleString('pt-BR')}</p>
+        `;
+
+        // Create movimentos section for this process
+        const movimentosDiv = document.createElement('div');
+        movimentosDiv.innerHTML = '<h4>Movimentações</h4>';
+
+        hit._source.movimentos.forEach(movimento => {
+          const movimentoDiv = document.createElement('div');
+          movimentoDiv.classList.add('movimento');
+
+          let descricaoComplemento = '';
+          if (movimento.complementosTabelados && movimento.complementosTabelados.length > 0) {
+            descricaoComplemento = movimento.complementosTabelados.map(comp =>
+              `${comp.nome}: ${comp.valor} (${comp.descricao})`
+            ).join(', ');
+          }
+
+          movimentoDiv.innerHTML = `
+                <p><strong>Código:</strong> ${movimento.codigo}</p>
+                <p><strong>Nome:</strong> ${movimento.nome}</p>
+                <p><strong>Data:</strong> ${new Date(movimento.dataHora).toLocaleString('pt-BR')}</p>
+                ${descricaoComplemento ? `<p><strong>Complementos:</strong> ${descricaoComplemento}</p>` : ''}
+            `;
+
+          movimentosDiv.appendChild(movimentoDiv);
+        });
+
+        // Append both processo and movimentos to the result
+        resultadoDetalhado.appendChild(processoDiv);
+        resultadoDetalhado.appendChild(movimentosDiv);
+      });
+
+      // Show the results
+      resultadoDetalhado.style.display = 'block';
+    }
+
+    function consultar() {
+      const numeroProcesso = document.getElementById('numeroProcesso').value;
+
+      if (!numeroProcesso) {
+        alert('Por favor, preencha o número do processo!');
+        return;
+      }
+
+      consultarAPI(numeroProcesso);
+    }
+  </script>
+</body>
+
+</html>
